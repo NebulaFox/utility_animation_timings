@@ -4,6 +4,34 @@ use std::convert::TryFrom;
 
 use primes::factors;
 
+/* Factors */
+
+type Factors = HashMap<u64, u32>;
+
+fn sorted_factors(fs: &Factors) -> Vec<u64> {
+    let mut sorted_keys: Vec<_> = fs.keys().map(|k| *k).collect();
+    sorted_keys.sort_unstable();
+    sorted_keys
+}
+
+fn number_and_print(fs: &Factors) -> u128 {
+   let number = sorted_factors(fs).iter()
+        .map(|key| (key, fs.get(&key).unwrap()))
+        .fold(1u128, |num, (k,v)| {
+            if num == 1 {
+                print!("{}^{}", k, v);
+            } else {
+                print!(" x {}^{}", k, v);
+            }
+
+            num * u128::from( k.pow(u32::try_from(*v).unwrap()) )
+        });
+    print!("\n");
+    number
+}
+
+/* CompositeS */
+
 #[derive(Clone)]
 struct CompositeS {
     time_a: u64,
@@ -94,75 +122,42 @@ fn main() {
 
     println!("\n");
 
-
-    let factors_arr: Vec<HashMap<u64, i32>> = composite.iter()
+    let factors_arr: Vec<Factors> = composite.iter()
         .map(|c| {
             c.duration_frames_factors.iter()
                 .fold(HashMap::new(), |mut hm, f| {
-                    let e = hm.entry(*f).or_insert(0);
-                    *e += 1;
+                    hm.entry(*f)
+                        .and_modify(|e| *e += 1)
+                        .or_insert(0);
                     hm
                 })
         })
         .collect();
 
-    let common_factors: HashMap<u64, i32> = factors_arr.iter()
-        .fold(HashMap::new(), |acc_hm, hm| {
-            let next_hm = hm.iter()
-                .fold(acc_hm, |mut acc_hm, (k, v)| {
-                    let e = acc_hm.entry(*k).or_insert(*v);
-                    if *e > *v {
-                        *e = *v;
-                    }
-                    acc_hm
-                });
-
-            next_hm.iter()
-                .filter(|(k, _)| hm.contains_key(k) )
-                .fold(HashMap::new(), |mut hm, (k, v)| {
-                    hm.insert(*k, *v);
-                    hm
-                })
-        });
-
-    println!("Common Factors:\n{:#?}\n", common_factors);
-
-    let merged_factors: HashMap<u64, i32> = factors_arr.iter()
+    let merged_factors: Factors = factors_arr.iter()
         .fold(HashMap::new(), |acc_hm, hm| {
             hm.iter()
                 .fold(acc_hm, |mut acc_hm, (k, v)| {
-                    let e = acc_hm.entry(*k).or_insert(*v);
-                    if *e < *v {
-                        *e = *v;
-                    }
+                    acc_hm.entry(*k)
+                        .and_modify(|e| {
+                            if *e < *v {
+                                *e = *v;
+                            }
+                        })
+                        .or_insert(*v);
+                    
                     acc_hm
                 })
         });
 
-    let mut sorted_keys: Vec<_> = merged_factors.keys().map(|k| *k).collect();
-    sorted_keys.sort_unstable();
-
-    println!("Combine all factors:\n");
-
-    let number: u128 = sorted_keys.iter()
-        .map(|key| (key, merged_factors.get(&key).unwrap()))
-        .fold(1u128, |num, (k,v)| {
-            if num == 1 {
-                print!("{}^{}", k, v);
-            } else {
-                print!(" x {}^{}", k, v);
-            }
-
-            num * u128::from( k.pow(u32::try_from(*v).unwrap()) )
-        });
-
-    print!("\n");
-    println!("= {}", number);
+    println!("Combine all non-common factors:");
+    let merged_factors_number = number_and_print(&merged_factors);
+    println!("= {}", merged_factors_number);
 
     println!("\nLoop Values:\n");
 
     for c in composite {
-        let lv = number / u128::from(c.duration_frames);
+        let lv = merged_factors_number / u128::from(c.duration_frames);
         println!(" {:>2}({:>4}), {:>2}({:>4}) ({:>6}) {:>20} {:>30}",
         c.time_a, c.frames_a(),
         c.time_b, c.frames_b(),
